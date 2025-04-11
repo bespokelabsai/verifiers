@@ -58,6 +58,7 @@ class GRPOEnvTrainer(GRPOTrainer):
             model_name: str = "",
             use_dr_grpo: bool = False,
             test_hypothesis_clip_advantage: bool = False,
+            apply_overlong_filtering: bool = False,
             **kwargs,
     ):
         if not args.use_vllm: # type: ignore
@@ -95,6 +96,7 @@ class GRPOEnvTrainer(GRPOTrainer):
         self.run_name = run_name
         self.use_dr_grpo = use_dr_grpo
         self.test_hypothesis_clip_advantage = test_hypothesis_clip_advantage
+        self.apply_overlong_filtering = apply_overlong_filtering
 
         if train_dataset is not None:
             dataset_hash = train_dataset._fingerprint
@@ -107,11 +109,13 @@ class GRPOEnvTrainer(GRPOTrainer):
             "parse_func": "N/A",
             "model_name": model_name,
             "run_hash": run_name,
-            "batch_mode": False
+            "batch_mode": False,
+            "response_format": "N/A",
         }
         if os.environ["CURATOR_VIEWER"] == "1":
             self._curator_viewer_client = Client()
-            self._curator_session_id = self._curator_session_id.create_session(metadata_dict)
+            self._curator_session_id = self._curator_viewer_client.create_session(metadata_dict)
+
 
     def _generate_and_score_completions(
          self, inputs: dict[str, Union[torch.Tensor, Any]]   
@@ -197,11 +201,53 @@ class GRPOEnvTrainer(GRPOTrainer):
 
         # Pad + mask after per-sequence EOS tokens
         completion_ids = [torch.tensor(ids, device=device) for ids in completion_ids]
+        # print(f"Completion IDs: {completion_ids}")
+        # print(f"Completion IDs Shape: {completion_ids[0].shape}")
         completion_ids = pad(completion_ids, padding_value=self.processing_class.pad_token_id) # type: ignore
+        # print(f"Completion IDs After Padding: {completion_ids}")
+        # print(f"Completion IDs After Padding Shape: {completion_ids[0].shape}")
 
         completion_mask = [torch.tensor(mask, device=device) for mask in completion_mask]
+        # for i, mask in enumerate(completion_mask):
+        #     if mask[-1] != 1:
+        #         print(f"Completion Mask {i} Don't end with 1")
+        #         print(f"Completion Mask: {completion_mask[i]}")
+        #         print(f"Completion IDs: {completion_ids[i]}")
+        #         print(f"Completion Message: {completion_messages[i]}")
+        #         raise ValueError("Stop")
+        # if self.apply_overlong_filtering:
+        #     # If apply overlong filtering, for each mask check the last sequence of 1 and make sure its length is less than self.args.max_completion_length
+        #     # Cut off to the last sequence of 1
+        #     completion_mask_last_response = []
+        #     for mask in completion_mask:
+        #         # Convert to list for easier manipulation
+        #         mask_list = mask.tolist()
+        #         # Find the last sequence of 1s
+        #         last_one_idx = len(mask_list) - 1
+        #         while last_one_idx >= 0 and mask_list[last_one_idx] == 1:
+        #             last_one_idx -= 1
+        #         # Calculate the length of the last sequence of 1s
+        #         last_sequence_length = len(mask_list) - 1 - last_one_idx
+        #         # Check if it exceeds the maximum allowed length
+        #         if last_sequence_length >= self.args.max_completion_length - 2:
+        #             # If the last sequence is too long, set the entire mask to 0
+        #             new_mask = torch.zeros_like(mask)
+        #             completion_mask_last_response.append(new_mask)
+        #             # Log the mask in txt file
+        #             with open(f"overlong_mask.txt", "a") as f:
+        #                 f.write(f"Mask: {mask_list}\n")
+        #                 f.write(f"Last Sequence Length: {last_sequence_length}\n")
+        #                 f.write(f"New Mask: {new_mask}\n")
+        #         else:
+        #             completion_mask_last_response.append(mask)
+        #     # Replace the original completion_mask with the filtered version
+        #     completion_mask = copy.deepcopy(completion_mask_last_response)
+        # print(f"Completion Mask: {completion_mask}")
+        # print(f"Completion Mask Shape: {completion_mask[0].shape}")
         completion_mask = pad(completion_mask, padding_value=0)
-
+        # print(f"Completion Mask After Padding: {completion_mask}")
+        # print(f"Completion Mask After Padding Shape: {completion_mask[0].shape}")
+        # raise ValueError("Stop here")
         prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1) # (B, P+C)
         

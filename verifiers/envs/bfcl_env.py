@@ -28,11 +28,11 @@ class BfclEnv(MultiStepEnv):
                  system_prompt: str = BFCL_PROMPT,
                  few_shot: List[Dict[str, str]] = [],
                  sampling_args={
-                    #  "stop": [
-                    #           "</tool>", 
-                    #           "<TASK_FINISHED>",
-                    #           "<TASK_ERROR>",
-                    #           ],
+                     "stop": [
+                              "</tool>", 
+                              "<TASK_FINISHED>",
+                              "<TASK_ERROR>",
+                              ],
                      "include_stop_str_in_output": True
                  },
                  mask_env_response: bool = True,
@@ -425,6 +425,9 @@ class BfclEnv(MultiStepEnv):
             if len(states[j]["prompt_ids"]) == 0:
                 states[j]["prompt_ids"] = llm_responses[i].prompt_token_ids
             llm_response = llm_responses[i].outputs[0].text
+            # print(f"llm_response: {llm_response}")
+            # print(f"Output Token IDs: {llm_responses[i].outputs[0].token_ids}")
+            # raise Exception("Stop here")
             if "<reasoning>" in llm_response and "</reasoning>" in llm_response:
                 # NOTE: Remove reasoning from llm_response for multi-turn generation
                 llm_response_without_reasoning = llm_response.split("</reasoning>")[1]
@@ -441,7 +444,6 @@ class BfclEnv(MultiStepEnv):
                     print(f"llm_response: {states[j]['messages'][-1]['content']}")
                     time.sleep(3)
 
-            # TODO: With multi-turn generation removing reasoning, we need to update the completion mask and completion ids for each turn
 
             # update completion masks
             states[j]["completion_mask"].extend([self.env_mask] * env_response_len)

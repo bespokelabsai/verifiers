@@ -2,8 +2,13 @@ import verifiers as vf
 from verifiers.tools import calculator, mean
 from verifiers.prompts import CALCULATOR_FEW_SHOT
 import time
+import os 
+
+os.environ["CURATOR_VIEWER"] = "1"
+
 # from unsloth import FastLanguageModel
-model_name = "Qwen/Qwen2.5-7B-Instruct"
+# model_name = "Qwen/Qwen2.5-7B-Instruct"
+model_name = "Qwen/Qwen2.5-3B-Instruct"
 # model_name = "/root/richard/test/verifiers/outputs/bfcl-qwen2.5-7b-instruct-1-turns-dr-grpo-update-ref-model-no-format-score-new-prompt-with-gibberish-judge/checkpoint-700"
 model, tokenizer = vf.get_model_and_tokenizer(model_name)
 
@@ -24,10 +29,15 @@ NUM_EPOCHS = 100
 USE_DR_GRPO = False
 USE_LATEST_TRL = False
 UPDATE_REF_MODEL = True
-EVAL_ON_START = True
+EVAL_ON_START = False
 TEST_HYPOTHESIS = False
 if TEST_HYPOTHESIS:
     BASELINE_RUN = False
+BETA = 0.001
+MAX_GRAD_NORM = 0.2
+NUM_ITERATIONS = 2
+APPLY_OVERLONG_FILTERING = True
+
 # if DEBUG_GENERATE or DEBUG_REWARDS:
 #     NUM_GPUS = 2
 #     MAX_STEPS_PER_TURN = 5
@@ -81,7 +91,8 @@ if TEST_HYPOTHESIS:
     else:
         # run_name += "-clip-advantage-negative-only"
         run_name += "-clip-advantage-positive-only"
-
+if APPLY_OVERLONG_FILTERING:
+    run_name += "-apply-overlong-filtering"
 
 
     
@@ -105,10 +116,10 @@ training_args.per_device_train_batch_size = PER_DEVICE_BATCH_SIZE
 training_args.gradient_accumulation_steps = 4
 # steps per global batch (1 on-policy, 1 off-policy)
 # NOTE: In TRL 0.15.2 this is not supported
-training_args.num_iterations = 2
+training_args.num_iterations = NUM_ITERATIONS
 # ref model configs
-training_args.beta = 0.04
-training_args.max_grad_norm = 0.2
+training_args.beta = BETA
+training_args.max_grad_norm = MAX_GRAD_NORM
 # evals
 if TEST_HYPOTHESIS:
     # training_args.eval_strategy = "no"
@@ -144,6 +155,7 @@ trainer = vf.GRPOEnvTrainer(
     run_name=run_name,
     use_dr_grpo=USE_DR_GRPO,
     test_hypothesis_clip_advantage=(TEST_HYPOTHESIS and not BASELINE_RUN),
+    apply_overlong_filtering=APPLY_OVERLONG_FILTERING,
 )
 
 trainer.train() 
