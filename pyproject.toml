@@ -20,6 +20,6 @@ dependencies = [
     "duckduckgo-search",
     "trl @ git+https://github.com/huggingface/trl.git@fc4dae2",
     "liger-kernel>=0.5.2",
-    "vllm==0.7.3",
+    "vllm==0.28.0",
     "brave-search>=0.1.8",
 ]
